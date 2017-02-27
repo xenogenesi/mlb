@@ -19,7 +19,7 @@
  * along with mlbinstall. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE 500
 
@@ -193,21 +193,25 @@ int main(int argc, char **argv)
 		vbr = true;
 
 	if ((argc != 4 && argc != 5) || (argc == 5 && !vbr))
-		errx(1, "Usage: %s <target> <kernel> <command line> [-vbr]\n\
+		errx(1, "Usage: %s <target> <kernel[@lba]> <command line> [-vbr]\n\
 Configures MLB to boot the kernel with the command line and installs it on\n\
 target (could be a file, a block device, ...). Specify -vbr as the last\n\
 argument to not reserve space for a partition table and gain an extra\n\
 64 bytes for the command line.\n", argv[0]);
 
 	const char *target = argv[1];
-	const char *kernel = argv[2];
+	char *kernel = strdup(argv[2]);
+	char *k_lba_off = strchr(kernel, '@');
+	if (k_lba_off != NULL) {
+		*k_lba_off++ = '\0';
+	}
 	const char *cmdline = argv[3];
 
 	check_version(kernel);
 
 	size_t mbr_len = vbr ? 510 : 446;
 	uint16_t cmdline_len = cmdlen(cmdline, mlb_bin_len, mbr_len);
-	uint32_t kernel_lba = lba(kernel);
+	uint32_t kernel_lba = (k_lba_off == NULL) ? lba(kernel) : atol(k_lba_off);
 
 	uint8_t mbr[510];
 	memset(mbr, 0, mbr_len);
@@ -216,5 +220,7 @@ argument to not reserve space for a partition table and gain an extra\n\
 	cmdcopy(mbr, mlb_bin_len, cmdline, cmdline_len);
 
 	mbrwrite(target, mbr);
+
+	free(kernel);
 }
 
